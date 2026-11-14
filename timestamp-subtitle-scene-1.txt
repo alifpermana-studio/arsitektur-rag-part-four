@@ -1,0 +1,35 @@
+00:00.600 --> 00:01.350
+Bayangkan,
+
+00:01.750 --> 00:07.450
+seorang pengguna baru saja mengunggah laporan PDF setebal 150 halaman ke aplikasi RAG kita.
+
+00:08.500 --> 00:10.750
+Untuk memproses satu berkas itu saja,
+
+00:10.850 --> 00:13.200
+server harus membongkar struktur biner PDF,
+
+00:13.350 --> 00:15.550
+memotongnya menjadi 300 bagian teks,
+
+00:15.800 --> 00:20.500
+lalu melakukan 300 kali panggilan jaringan ke model AI untuk membuat vektor.
+
+00:21.500 --> 00:25.400
+Proses berantai ini memakan waktu 45 sampai 90 detik.
+
+00:26.400 --> 00:31.250
+Kalau kamu menaruh seluruh proses berat ini langsung di dalam rute HTTP POST Express.js,
+
+00:31.600 --> 00:37.400
+itu ibarat kasir restoran cepat saji yang meninggalkan mejanya selama satu jam untuk ikut memasak di dapur.
+
+00:38.250 --> 00:39.100
+Akibatnya,
+
+00:39.300 --> 00:43.000
+koneksi peramban pelanggan pertama akan putus karena gateway timeout,
+
+00:43.300 --> 00:48.800
+dan seluruh pengguna lain yang cuma mau bertanya ke chatbot ikut lumpuh total karena event loop Node.js terkunci rapat.

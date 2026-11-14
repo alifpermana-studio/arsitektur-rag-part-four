@@ -1,0 +1,41 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:03.280
+Supaya server tetap gesit melayani ratusan pengguna,
+
+2
+00:00:03.520 --> 00:00:07.600
+kita wajib memisahkan tugas penerimaan berkas dari tugas pengolahannya
+
+3
+00:00:07.600 --> 00:00:10.680
+menggunakan pola arsitektur Producer-Consumer.
+
+4
+00:00:11.160 --> 00:00:16.200
+Di sinilah duet Redis dan pustaka BullMQ beraksi di dalam Express.js kita.
+
+5
+00:00:16.680 --> 00:00:18.360
+Kita bagi peran menjadi dua:
+
+6
+00:00:18.680 --> 00:00:23.360
+rute HTTP Express.js hanya bertugas sebagai Producer atau kasir depan
+
+7
+00:00:23.360 --> 00:00:26.120
+yang menerima berkas dan mencetak nomor antrean,
+
+8
+00:00:26.400 --> 00:00:29.400
+sedangkan proses pengolahan PDF yang berat
+
+9
+00:00:29.680 --> 00:00:34.800
+didelegasikan ke BullMQ Worker sebagai Consumer atau koki di dapur belakang.
+
+10
+00:00:35.280 --> 00:00:40.080
+Keduanya dihubungkan oleh antrean pesan di Redis pada Database 0.

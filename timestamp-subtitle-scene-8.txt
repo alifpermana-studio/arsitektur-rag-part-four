@@ -1,0 +1,49 @@
+WEBVTT
+
+1
+00:00:00.520 --> 00:00:01.980
+Mari kita lihat hasil uji bebannya.
+
+2
+00:00:03.080 --> 00:00:06.940
+Di layar atas, kita mengunggah sepuluh berkas PDF tebal secara serentak
+
+3
+00:00:07.340 --> 00:00:09.340
+dan antrean BullMQ mengolahnya dua demi dua
+
+4
+00:00:09.360 --> 00:00:11.820
+dengan konsumsi RAM yang sangat tenang.
+
+5
+00:00:13.700 --> 00:00:15.220
+Di saat yang bersamaan di layar bawah,
+
+6
+00:00:15.600 --> 00:00:19.080
+pengguna lain tetap bisa melakukan chat dan memanggil Tool RAG
+
+7
+00:00:19.100 --> 00:00:22.160
+dengan respons instan belasan milidetik tanpa lag sedikit pun!
+
+8
+00:00:23.980 --> 00:00:26.540
+Sekarang pipa antrean kita sudah berjalan mulus.
+
+9
+00:00:27.820 --> 00:00:31.380
+Pertanyaannya, apa rahasia yang dilakukan oleh Worker di dalam dapur
+
+10
+00:00:31.420 --> 00:00:34.880
+saat memotong teks PDF agar AI tidak mengalami amnesia konteks?
+
+11
+00:00:36.520 --> 00:00:39.420
+Di bagian kelima, kita akan bedah teknik Contextual Vector Embedding
+
+12
+00:00:39.440 --> 00:00:41.320
+menggunakan model AI ringan.

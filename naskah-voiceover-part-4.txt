@@ -1,0 +1,67 @@
+================================================================================
+NASKAH VOICEOVER VIDEO TIKTOK (FORMAT VERTIKAL 9:16)
+Judul Proyek : Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis & BullMQ (Part 4)
+Format       : 8 Cut Scenes
+================================================================================
+
+### Cut Scene 1 (alifpermana.studio)
+Teks Layar: "Unggah PDF 150 Halaman Bikin Web Timeout & Chatbot Ikut Mati?! Jangan Proses PDF di Rute HTTP!"
+
+Voiceover:
+"Bayangkan seorang pengguna baru saja mengunggah laporan PDF setebal 150 halaman ke aplikasi RAG kita. Untuk memproses satu berkas itu saja, server harus membongkar struktur biner PDF, memotongnya menjadi 300 bagian teks, lalu melakukan 300 kali panggilan jaringan ke model AI untuk membuat vektor. Proses berantai ini memakan waktu 45 sampai 90 detik! Kalau kamu menaruh seluruh proses berat ini langsung di dalam rute HTTP POST Express.js, itu ibarat kasir restoran cepat saji yang meninggalkan mejanya selama satu jam untuk ikut memasak di dapur. Akibatnya, koneksi peramban pelanggan pertama akan putus karena Gateway Timeout, dan seluruh pengguna lain yang cuma mau bertanya ke chatbot ikut lumpuh total karena Event Loop Node.js terkunci rapat."
+
+---
+
+### Cut Scene 2 (azurewot)
+Teks Layar: "Solusi Producer-Consumer: Pisahkan Kasir HTTP Express.js & Koki Worker BullMQ Lewat Redis!"
+
+Voiceover:
+"Supaya server tetap gesit melayani ratusan pengguna, kita wajib memisahkan tugas penerimaan berkas dari tugas pengolahannya menggunakan pola arsitektur Producer-Consumer. Di sinilah duet Redis dan pustaka BullMQ beraksi di dalam Express.js kita. Kita bagi peran menjadi dua: rute HTTP Express.js hanya bertugas sebagai Producer atau kasir depan yang menerima berkas dan mencetak nomor antrean, sedangkan proses pengolahan PDF yang berat didelegasikan ke BullMQ Worker sebagai Consumer atau koki di dapur belakang. Keduanya dihubungkan oleh antrean pesan di Redis pada Database 0."
+
+---
+
+### Cut Scene 3 (azurestudio.backup)
+Teks Layar: "Jalur Kilat 50 Milidetik: Cek Duplikat SHA-256 -> Masuk Antrean Redis -> Balas HTTP 202 Accepted!"
+
+Voiceover:
+"Mari kita lihat betapa cepatnya kasir HTTP kita bekerja saat tombol unggah ditekan. Dalam waktu kurang dari 50 milidetik, endpoint upload hanya melakukan tiga langkah ringan. Pertama, menghitung sidik jari SHA-256 dari berkas dan mengeceknya ke tabel documents di PostgreSQL; kalau berkas yang sama persis sudah pernah diunggah, sistem langsung menolaknya supaya kita tidak membakar uang token AI dua kali. Kedua, menyimpan data awal dokumen dengan status PENDING. Ketiga, mendorong tiket tugas berisi ID dokumen dan lokasi berkas ke antrean BullMQ di Redis, lalu detik itu juga membalas peramban pengguna dengan kode HTTP 202 Accepted."
+
+---
+
+### Cut Scene 4 (azurestudio.backup1)
+Teks Layar: "Diserbu 20 PDF Serentak Tapi RAM Tetap Adem! Rahasia Parameter `concurrency: 2` di BullMQ Worker"
+
+Voiceover:
+"Lalu bagaimana kalau tiba-tiba ada 20 pengguna mengunggah berkas PDF berukuran besar di detik yang sama? Di sinilah letak keindahan BullMQ Worker kita. Ingat di Episode 2, kontainer Express.js kita hanya diberi jatah anggaran RAM maksimal 512 megabita. Agar memori Node.js tidak meledak akibat membongkar 20 PDF sekaligus, kita kunci konfigurasi Worker pada angka concurrency sama dengan 2. Artinya, seberapa banyak pun dokumen yang membanjiri antrean Redis, koki Worker kita hanya akan memproses maksimal dua berkas PDF secara bersamaan, sementara sisanya mengantre dengan tertib tanpa menyentuh RAM aplikasi."
+
+---
+
+### Cut Scene 5 (azurestudio.backup2)
+Teks Layar: "Transparansi ke Pengguna: Lacak Siklus Status (`PENDING` -> `PROCESSING` -> `COMPLETED`) Secara Real-Time!"
+
+Voiceover:
+"Karena proses ekstraksi kini berjalan di latar belakang, kita harus memberi kepastian visual ke layar pengguna. Begitu Worker mengambil satu tugas dari Redis, ia langsung mengubah kolom status dokumen di PostgreSQL dari PENDING menjadi PROCESSING. Setiap kali Worker selesai memproses sekumpulan potongan teks, ia memanggil fungsi updateProgress di BullMQ. Antarmuka Next.js cukup memantau endpoint status dokumen secara berkala untuk menampilkan bilah persentase yang bergerak mulus dari nol hingga seratus persen, lalu berubah hijau menjadi COMPLETED saat seluruh vektor siap digunakan."
+
+---
+
+### Cut Scene 6 (alifpustaka.assist)
+Teks Layar: "API AI Kena Rate Limit di Halaman 75? Pulihkan Otomatis dengan Exponential Backoff (5s -> 10s -> 20s)!"
+
+Voiceover:
+"Tantangan terbesar saat memproses ratusan potongan teks ke model AI eksternal adalah gangguan jaringan sesaat atau terkena pembatasan kuota Rate Limit HTTP 429. Bayangkan Worker sudah memproses sampai potongan ke-150, lalu tiba-tiba API model AI tersedak selama beberapa detik; masak kita harus gagal dan mengulang dari halaman pertama? Dengan BullMQ, kita pasang perisai Exponential Backoff dengan tiga kali percobaan ulang. Saat terjadi kegagalan jaringan, Worker otomatis menahan diri selama 5 detik di percobaan pertama, 10 detik di percobaan kedua, dan 20 detik di percobaan ketiga, lalu melanjutkan sisa potongan yang belum tersimpan di database hingga tuntas."
+
+---
+
+### Cut Scene 7 (fajarrini915)
+Teks Layar: "Awas Bangkai Job BullMQ Bikin Redis Penuh! Wajib Pasang `removeOnComplete` & `removeOnFail`"
+
+Voiceover:
+"Satu jebakan tersembunyi yang sering dilupakan pengguna BullMQ adalah kebersihan memori Redis. Ingat, kunci antrean BullMQ di Database 0 itu tidak memiliki batas waktu kedaluwarsa atau TTL supaya tidak terhapus saat mengantre. Kalau tugas yang sudah selesai tidak kita bersihkan, ribuan riwayat Job lama akan menumpuk menjadi bangkai data dan menghabiskan jatah RAM 256 megabita di Redis kita! Karena status akhir dokumen sudah kita catat permanen di PostgreSQL, kita wajib memasang aturan removeOnComplete untuk hanya menyisakan 100 riwayat sukses terakhir di Redis, serta removeOnFail untuk membuang log error setelah 24 jam."
+
+---
+
+### Cut Scene 8 (ruhwiyanto278)
+Teks Layar: "Unggah 10 PDF Berat Sambil Chatting Tetap Lancar Jaya! Lanjut Part 5: Contextual Vector Embedding!"
+
+Voiceover:
+"Mari kita lihat hasil uji bebannya. Di layar atas, kita mengunggah sepuluh berkas PDF tebal secara serentak dan antrean BullMQ mengolahnya dua demi dua dengan konsumsi RAM yang sangat tenang. Di saat yang bersamaan di layar bawah, pengguna lain tetap bisa melakukan chat dan memanggil Tool RAG dengan respons instan belasan milidetik tanpa lag sedikit pun! Sekarang pipa antrean kita sudah berjalan mulus. Pertanyaannya, apa rahasia yang dilakukan oleh Worker di dalam dapur saat memotong teks PDF agar AI tidak mengalami amnesia konteks? Di bagian kelima, kita akan bedah teknik Contextual Vector Embedding menggunakan model AI ringan."

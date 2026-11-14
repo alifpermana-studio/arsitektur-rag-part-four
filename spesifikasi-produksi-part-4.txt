@@ -1,0 +1,115 @@
+================================================================================
+SPESIFIKASI PRODUKSI VIDEO TIKTOK (FORMAT VERTIKAL 9:16)
+Judul Proyek : Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis & BullMQ (Part 4)
+Format       : 8 Cut Scenes
+================================================================================
+
+### Cut Scene 1 (alifpermana.studio)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Menarik perhatian penonton dengan mendemonstrasikan bencana ketika ekstraksi PDF setebal 150 halaman dijalankan secara sinkron di dalam rute HTTP POST Express.js hingga memicu 504 Gateway Timeout dan melumpuhkan seluruh server.
+
+Spesifikasi Visual: Bagian atas menampilkan layar pengguna yang mengunggah berkas PDF 150 halaman; roda pemuatan berputar selama 60 detik hingga akhirnya meledak menjadi layar merah `504 Gateway Timeout` dari Nginx/Cloudflare. Bagian bawah menampilkan analogi kasir restoran yang meninggalkan meja kasir selama 1 jam untuk memasak pesanan pelanggan pertama di dapur, sehingga puluhan pelanggan di belakangnya yang hanya ingin membeli air minum ikut terlantar di depan pintu.
+
+Teks Layar (Hook): "Unggah PDF 150 Halaman Bikin Web Timeout & Chatbot Ikut Mati?! Jangan Proses PDF di Rute HTTP!"
+
+---
+
+### Cut Scene 2 (azurewot)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Menjelaskan solusi arsitektur Producer-Consumer dengan memisahkan tugas penerimaan berkas di Express.js (Producer) dari proses pengolahan dokumen di latar belakang (BullMQ Worker Consumer) melalui perantara Redis Database 0.
+
+Spesifikasi Visual: Diagram alur vertikal yang membelah komponen di dalam ekosistem Express.js dan Redis. Di sisi atas, `HTTP Endpoint (Producer)` menerima unggahan PDF dari Next.js dan langsung melempar tiket tugas ke dalam `Redis Queue (DB 0 - bull:document-ingestion)`. Di sisi bawah, `BullMQ Worker (Consumer)` menarik tiket dari Redis satu per satu untuk mengekstrak teks, memanggil model AI, dan menyimpan vektor ke PostgreSQL tanpa mengganggu jalur utama HTTP.
+
+Teks Layar: "Solusi Producer-Consumer: Pisahkan Kasir HTTP Express.js & Koki Worker BullMQ Lewat Redis!"
+
+---
+
+### Cut Scene 3 (azurestudio.backup)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Membedah 3 langkah super cepat (di bawah 50 milidetik) yang terjadi di dalam endpoint `POST /api/v1/documents/upload` sebelum mengembalikan status HTTP 202 Accepted ke pengguna.
+
+Spesifikasi Visual: Cuplikan kode rute Express.js dengan indikator waktu eksekusi `Total: 38 ms`. Tiga kotak tahapan menyala berurutan: 1. Hitung sidik jari SHA-256 (`crypto.createHash('sha256')`) dan cek ke tabel `documents` agar PDF kembar langsung ditolak tanpa membakar token AI, 2. Simpan baris baru ke PostgreSQL dengan status awal `PENDING`, dan 3. Dorong payload ringan (`{ documentId, filePath }`) ke `ingestionQueue.add()` lalu balas peramban dengan `res.status(202).json({ status: 'QUEUED' })`.
+
+Teks Layar: "Jalur Kilat 50 Milidetik: Cek Duplikat SHA-256 -> Masuk Antrean Redis -> Balas HTTP 202 Accepted!"
+
+---
+
+### Cut Scene 4 (azurestudio.backup1)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Membongkar rahasia menjaga kontainer Express.js agar tidak melampaui batas anggaran 512 MB RAM saat diserbu puluhan unggahan PDF bersamaan melalui pengaturan `concurrency: 2` pada Worker BullMQ.
+
+Spesifikasi Visual: Layar atas menampilkan simulasi 20 berkas PDF yang masuk serentak ke antrean Redis. Di pintu masuk Worker Express.js (batas RAM 512 MB), sebuah gerbang pengaman bertuliskan `concurrency: 2` menahan 18 berkas tetap mengantre rapi di Redis dan hanya mengizinkan maksimal 2 berkas PDF dibongkar di memori Node.js pada satu waktu. Layar bawah menampilkan grafik konsumsi RAM V8 Heap yang tetap rata dan stabil di angka 280 MB tanpa lonjakan tajam.
+
+Teks Layar: "Diserbu 20 PDF Serentak Tapi RAM Tetap Adem! Rahasia Parameter `concurrency: 2` di BullMQ Worker"
+
+---
+
+### Cut Scene 5 (azurestudio.backup2)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Menjelaskan cara kerja mesin status (State Machine) dokumen di PostgreSQL dan pelacakan persentase progres di antarmuka Next.js agar pengguna tahu kapan dokumennya siap ditanyai.
+
+Spesifikasi Visual: Bagan transisi status (`ENUM ingestion_status`) yang bergerak dinamis: saat masuk antrean berstatus `PENDING`, saat diambil Worker berubah menjadi `PROCESSING` disertai pembaruan angka `await job.updateProgress(45)` setiap kali selesai memproses kumpulan potongan teks, dan berakhir di `COMPLETED` (hijau) atau `FAILED` (merah dengan catatan kolom `error_message`). Di bawahnya tampil kartu UI Next.js yang memperbarui bilah progres secara mulus melalui endpoint `GET /api/v1/documents/:id/status`.
+
+Teks Layar: "Transparansi ke Pengguna: Lacak Siklus Status (`PENDING` -> `PROCESSING` -> `COMPLETED`) Secara Real-Time!"
+
+---
+
+### Cut Scene 6 (alifpustaka.assist)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Mengungkap strategi pemulihan otomatis (Self-Healing) menggunakan Exponential Backoff di BullMQ ketika panggilan API model AI mengalami gangguan jaringan atau Rate Limit (HTTP 429) di tengah pemrosesan dokumen panjang.
+
+Spesifikasi Visual: Linimasa pemrosesan 300 potongan teks dari sebuah PDF. Saat tiba di potongan ke-150, API Gateway AI mengembalikan error merah `429 Too Many Requests`. Alih-alih menggugurkan seluruh dokumen, konfigurasi BullMQ `attempts: 3, backoff: { type: 'exponential', delay: 5000 }` menahan Worker untuk beristirahat selama 5 detik (percobaan 1), 10 detik (percobaan 2), hingga 20 detik (percobaan 3), lalu melanjutkan proses dari potongan yang belum tersimpan di PostgreSQL.
+
+Teks Layar: "API AI Kena Rate Limit di Halaman 75? Pulihkan Otomatis dengan Exponential Backoff (5s -> 10s -> 20s)!"
+
+---
+
+### Cut Scene 7 (fajarrini915)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Membongkar jebakan kebocoran memori Redis akibat riwayat tugas BullMQ yang sudah selesai namun tidak pernah dibersihkan, serta solusinya menggunakan opsi pembersihan otomatis (`removeOnComplete` & `removeOnFail`).
+
+Spesifikasi Visual: Layar atas menampilkan memori Redis DB 0 yang perlahan penuh oleh ribuan bangkai data JSON dari Job yang sudah berstatus selesai berminggu-minggu lalu karena data BullMQ tidak memiliki TTL. Layar bawah menampilkan potongan konfigurasi `defaultJobOptions` pada BullMQ: `removeOnComplete: { count: 100 }` (hanya simpan 100 riwayat sukses terakhir di Redis) dan `removeOnFail: { age: 86400 }` (hapus log gagal setelah 24 jam), karena rekam jejak permanennya sudah tercatat aman di tabel `documents` PostgreSQL.
+
+Teks Layar: "Awas Bangkai Job BullMQ Bikin Redis Penuh! Wajib Pasang `removeOnComplete` & `removeOnFail`"
+
+---
+
+### Cut Scene 8 (ruhwiyanto278)
+
+Judul Proyek: Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ (Bagian 4 dari 10 Seri Masterclass Arsitektur RAG).
+
+Pendekatan Materi: Memadukan Analogi Kasir Cepat Saji yang Ikut Memasak di Meja Depan vs Dapur Belakang Berbasis Nomor Antrean dengan bedah pola Producer-Consumer BullMQ, kode respons HTTP 202 Accepted, pembatasan konkurensi Worker, serta mekanisme Exponential Backoff.
+
+Tujuan Komunikasi: Menunjukkan bukti uji beban ketika 10 berkas PDF tebal diunggah bersamaan sementara pengguna lain tetap bisa melakukan chat RAG dengan latensi belasan milidetik, sekaligus membuka jembatan menuju Episode 5.
+
+Spesifikasi Visual: Rekaman layar terbelah (split-screen): di sisi atas, 10 berkas PDF sedang diunggah serentak dan antrean BullMQ memprosesnya dua demi dua dengan tenang; di sisi bawah, seorang pengguna mengirim pertanyaan ke chatbot dan tetap menerima respons instan tanpa hambatan. Di akhir adegan, kamera memperbesar ke dalam isi fungsi Worker BullMQ pada tahap pemotongan teks yang bersiap memanggil agen AI ringan, diikuti penanda lanjut ke Bagian 5.
+
+Teks Layar: "Unggah 10 PDF Berat Sambil Chatting Tetap Lancar Jaya! Lanjut Part 5: Contextual Vector Embedding!"

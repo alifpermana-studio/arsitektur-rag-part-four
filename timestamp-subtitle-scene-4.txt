@@ -1,0 +1,41 @@
+WEBVTT
+
+1
+00:00:00.640 --> 00:00:03.380
+Lalu bagaimana kalau tiba-tiba ada 20 pengguna
+
+2
+00:00:03.420 --> 00:00:05.900
+mengunggah berkas PDF berukuran besar di detik yang sama?
+
+3
+00:00:07.220 --> 00:00:09.960
+Di sinilah letak keindahan BullMQ Worker kita.
+
+4
+00:00:11.020 --> 00:00:13.700
+Ingat di Episode 2, kontainer Express.js kita
+
+5
+00:00:13.840 --> 00:00:16.620
+hanya diberi jatah anggaran RAM maksimal 512 megabita.
+
+6
+00:00:18.340 --> 00:00:21.880
+Agar memori Node.js tidak meledak akibat membongkar 20 PDF sekaligus,
+
+7
+00:00:22.300 --> 00:00:25.860
+kita kunci konfigurasi Worker pada angka concurrency sama dengan 2.
+
+8
+00:00:26.980 --> 00:00:30.200
+Artinya, seberapa banyak pun dokumen yang membanjiri antrean Redis,
+
+9
+00:00:30.460 --> 00:00:34.340
+koki Worker kita hanya akan memproses maksimal dua berkas PDF secara bersamaan,
+
+10
+00:00:35.020 --> 00:00:38.320
+sementara sisanya mengantre dengan tertib tanpa menyentuh RAM aplikasi.

@@ -1,0 +1,49 @@
+WEBVTT
+
+1
+00:00:00.540 --> 00:00:04.020
+Tantangan terbesar saat memproses ratusan potongan teks ke model AI eksternal
+
+2
+00:00:04.040 --> 00:00:05.860
+adalah gangguan jaringan sesaat
+
+3
+00:00:06.000 --> 00:00:09.520
+atau terkena pembatasan kuota Rate Limit HTTP 429.
+
+4
+00:00:11.120 --> 00:00:14.600
+Bayangkan Worker sudah memproses sampai potongan ke-150,
+
+5
+00:00:15.060 --> 00:00:17.780
+lalu tiba-tiba API model AI tersedak selama beberapa detik;
+
+6
+00:00:18.340 --> 00:00:20.480
+masak kita harus gagal dan mengulang dari halaman pertama?
+
+7
+00:00:21.880 --> 00:00:26.040
+Dengan BullMQ, kita pasang perisai Exponential Backoff dengan tiga kali percobaan ulang.
+
+8
+00:00:27.600 --> 00:00:28.860
+Saat terjadi kegagalan jaringan,
+
+9
+00:00:29.140 --> 00:00:32.000
+Worker otomatis menahan diri selama 5 detik di percobaan pertama,
+
+10
+00:00:32.780 --> 00:00:34.020
+10 detik di percobaan kedua,
+
+11
+00:00:34.760 --> 00:00:36.280
+dan 20 detik di percobaan ketiga,
+
+12
+00:00:37.160 --> 00:00:40.340
+lalu melanjutkan sisa potongan yang belum tersimpan di database hingga tuntas.

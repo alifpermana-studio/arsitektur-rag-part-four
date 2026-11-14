@@ -1,0 +1,32 @@
+00:00.250 --> 00:02.850
+Mari kita lihat betapa cepatnya kasir HTTP kita bekerja
+
+00:02.900 --> 00:04.700
+saat tombol unggah ditekan.
+
+00:05.450 --> 00:07.700
+Dalam waktu kurang dari 50 milidetik,
+
+00:07.750 --> 00:10.500
+endpoint upload hanya melakukan tiga langkah ringan.
+
+00:11.200 --> 00:14.950
+Pertama, menghitung sidik jari SHA-256 dari berkas
+
+00:15.000 --> 00:17.800
+dan mengeceknya ke tabel documents di PostgreSQL.
+
+00:18.350 --> 00:20.950
+Kalau berkas yang sama persis sudah pernah diunggah,
+
+00:21.000 --> 00:24.750
+sistem langsung menolaknya supaya kita tidak membakar uang token AI dua kali.
+
+00:25.400 --> 00:29.000
+Kedua, menyimpan data awal dokumen dengan status pending.
+
+00:29.900 --> 00:34.500
+Ketiga, mendorong tiket tugas berisi ID dokumen dan lokasi berkas ke antrean BullMQ di Redis.
+
+00:35.300 --> 00:40.100
+Lalu detik itu juga membalas peramban pengguna dengan kode HTTP 202 Accepted.

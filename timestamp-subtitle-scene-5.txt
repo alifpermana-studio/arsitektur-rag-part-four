@@ -1,0 +1,45 @@
+WEBVTT
+
+1
+00:00:00.600 --> 00:00:03.080
+Karena proses ekstraksi kini berjalan di latar belakang,
+
+2
+00:00:03.260 --> 00:00:05.700
+kita harus memberi kepastian visual ke layar pengguna.
+
+3
+00:00:06.760 --> 00:00:08.840
+Begitu Worker mengambil satu tugas dari Redis,
+
+4
+00:00:09.120 --> 00:00:12.000
+ia langsung mengubah kolom status dokumen di PostgreSQL
+
+5
+00:00:12.260 --> 00:00:13.500
+dari PENDING menjadi PROCESSING.
+
+6
+00:00:14.600 --> 00:00:17.420
+Setiap kali Worker selesai memproses sekumpulan potongan teks,
+
+7
+00:00:17.580 --> 00:00:20.120
+ia memanggil fungsi updateProgress di BullMQ.
+
+8
+00:00:21.320 --> 00:00:25.240
+Antarmuka Next.js cukup memantau endpoint status dokumen secara berkala
+
+9
+00:00:25.260 --> 00:00:29.080
+untuk menampilkan bilah persentase yang bergerak mulus dari nol hingga seratus persen,
+
+10
+00:00:29.980 --> 00:00:31.660
+lalu berubah hijau menjadi COMPLETED
+
+11
+00:00:31.820 --> 00:00:33.320
+saat seluruh vektor siap digunakan.
