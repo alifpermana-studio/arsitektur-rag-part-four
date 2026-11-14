@@ -1,0 +1,5 @@
+{
+  "name": "Masterclass RAG Bagian 4 — Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ",
+  "description": "Memadukan Analogi Hantu Data (Split-Brain Database) dan Analogi Lorong Perpustakaan Bertingkat dengan bedah skema DDL SQL, denormalisasi JSONB, kolom otomatis TSVECTOR, serta kalkulasi memori indeks HNSW dan GIN.",
+  "requestFramePermissions": []
+}
