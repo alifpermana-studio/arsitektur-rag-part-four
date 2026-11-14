@@ -2,11 +2,14 @@
 // Only adjusted for unified Dark Tech background (#0e1626) contrast
 
 function drawThemeBg(c, W, H) {
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
   c.fillStyle = '#0e1626';
   c.fillRect(-20, -20, W + 40, H + 40);
   c.fillStyle = '#13203a';
   c.beginPath(); c.arc(920, 220, 260, 0, Math.PI * 2); c.fill();
   c.beginPath(); c.arc(160, 1680, 320, 0, Math.PI * 2); c.fill();
+  c.restore();
 }
 
 // ============================================================================
@@ -82,7 +85,6 @@ function createScene1() {
   // 6 event loop lock (adjusted K.ink on bg -> K.iv / K.dk)
   ()=>{bg(K.iv);c.save();c.translate(43,36);c.scale(.92,.92);
    tx('Event loop Node.js terkunci',540,120,58,K.iv);
-   for(let i=0;i<4;i++)arc(540,540,230,i*1.57+.15,i*1.57+1.35,i?K.sl:K.cor,40);
    rr(450,500,180,140,30,'#1d2b45',K.iv,5);arc(540,500,50,Math.PI,0,K.iv,26);ci(540,568,18,K.amb);rr(532,574,16,36,6,K.amb);
    tx('1 thread · satu pekerjaan berat',540,860,30,K.sl,1);
    for(let i=0;i<4;i++){const x=120+i*215;rr(x,930,170,300,34,'#1d2b45',K.sl,4);rr(x+16,950,138,230,18,K.dk);rr(x+20,990,130,60,20,K.per);tx('…',x+85,1032,40,K.ink);ci(x+85,1120,30,K.cor);ln([[x+72,1107],[x+98,1133]],'#fff',6);ln([[x+98,1107],[x+72,1133]],'#fff',6)}
@@ -101,14 +103,14 @@ function createScene1() {
    ws.forEach((w,i)=>{const p=eo(cl((u-i*.07)/.28)),v=k%4,ww=w0[i]*s;c.save();c.globalAlpha=cl(p*1.4)*(1-o);let dx=0,dy=-o*44;if(v==0)dy+=(1-p)*70;else if(v==1)dy-=(1-p)*70;else if(v==2)dx=-(1-p)*130;else{const sc=ebo(p);c.translate(x+ww/2,y);c.scale(sc,sc);c.translate(-(x+ww/2),-y)}
     c.translate(dx,dy);c.font='800 '+z+'px '+FB;c.fillStyle=HI.test(w)?pf:bc;c.textAlign='left';c.fillText(w,x,y);c.restore();x+=ww+gap*s});
    rr(x0,y+34,tot*s*cl(u/(q[1]-q[0])),8,4,pf);c.restore()}
-  const cov=(col,p)=>{c.fillStyle='#0e1626';c.fillRect(-120,1560*p,1400,2400)};
+  const cov=(col,p)=>{c.save();c.beginPath();c.rect(-120,1560*p,1400,2400);c.clip();drawThemeBg(c,W,H);c.restore()};
   const OV=[
   (u)=>{ci(790,610,66,K.iv);const a=u*7;arc(790,610,50,a,a+4.2,K.cob,14);rr(330,780,200,16,8,K.iv);rr(330,780,200*seg(u,.6,7),16,8,K.cob)},
   (u)=>cov(K.iv,pw(u,[[.3,0],[2.7,.3],[7.5,.55],[12.5,1.02]])),
-  (u)=>{const p=eio(seg(u,.5,4.4));arc(540,640,300,0,6.4,'#1d2b45',76);arc(540,640,300,-1.57,-1.57+5.2*p,K.cor,70);if(p>.8)arc(540,640,300,3.6,3.6+.9*seg(p,.8,1),K.amb,70);cov(K.per,pw(u,[[0,0],[.5,.14],[1.5,.2]]));rr(90,1090,900,100,0,'#0e1626');[[K.cob,.28],[K.teal,.14],[K.cor,.46],[K.per,.12]].reduce((x,s,i)=>{const w=880*s[1]-6;rr(x,1100,w*seg(u,.8+i*.9,1.5+i*.9),70,22,s[0]);return x+880*s[1]},100)},
+  (u)=>{const p=eio(seg(u,.5,4.4));arc(540,640,300,0,6.4,'#1d2b45',76);arc(540,640,300,-1.57,-1.57+5.2*p,K.cor,70);if(p>.8)arc(540,640,300,3.6,3.6+.9*seg(p,.8,1),K.amb,70);ci(540,640,262,'#0e1626');const n=ebo(seg(u,3.2,3.9));if(n>0){c.save();c.translate(540,700);c.scale(n,n);tx('45–90',0,0,190,K.iv);tx('detik',0,90,64,K.per);c.restore()}rr(90,1090,900,150,0,'#0e1626');[[K.cob,.28,'bongkar'],[K.teal,.14,'potong'],[K.cor,.46,'300× embed'],[K.per,.12,'simpan']].reduce((x,s,i)=>{const w=880*s[1]-6,q=seg(u,.8+i*.9,1.5+i*.9);rr(x,1100,w*q,70,22,s[0]);if(q>.5)tx(s[2],x+440*s[1],1215,24,K.iv,1);return x+880*s[1]},100)},
   (u)=>cov(K.ink,pw(u,[[.3,0],[1,.05],[5.3,.38],[5.6,.4],[11.4,1.02]])),
   (u)=>{for(let i=0;i<7;i++){const a=i*.9,d=eo(cl(u/1.2))*500;arc(540+Math.cos(a)*d,450+Math.sin(a)*d*.7,24,i,i+2,K.amb,10)}if(u<.12)c.fillStyle='rgba(255,255,255,.5)',c.fillRect(-100,-100,1300,2000)},
-  (u)=>{const r=1-eo(seg(u,1.5,4.2)),a0=u*3*r*r;arc(540,540,230,0,6.4,'#0e1626',64);for(let i=0;i<4;i++)arc(540,540,230,a0+i*1.57+.15,a0+i*1.57+1.35,i?K.sl:K.cor,40);rr(450,500,180,140,30,'#1d2b45',K.iv,5);arc(540,500,50,Math.PI,0,K.iv,26);ci(540,568,18,K.amb);rr(532,574,16,36,6,K.amb);cov(K.iv,pw(u,[[0,.1],[.6,.2],[5.6,1.02]]))}];
+  (u)=>{const r=1-eo(seg(u,1.5,4.2)),a0=u*3*r*r;for(let i=0;i<4;i++)arc(540,540,230,a0+i*1.57+.15,a0+i*1.57+1.35,i?K.sl:K.cor,40);rr(450,500,180,140,30,'#1d2b45',K.iv,5);arc(540,500,50,Math.PI,0,K.iv,26);ci(540,568,18,K.amb);rr(532,574,16,36,6,K.amb);cov(K.iv,pw(u,[[0,.1],[.6,.2],[5.6,1.02]]))}];
   const RAW=[null,null,null,(u)=>{ci(780,900,92,'#0e1626');const p=ebo(seg(u,6,6.6));if(p>0){c.save();c.translate(780,900);c.scale(p,p);ci(0,0,86,K.amb);ci(0,0,70,K.iv);const a=(u-6)*3-1.57;ln([[0,0],[48*Math.cos(a),48*Math.sin(a)]],K.ink,8);ln([[0,0],[28*Math.cos(a*.1-1.57),28*Math.sin(a*.1-1.57)]],K.ink,8);c.restore()}},null,null];
   function drawS(i,t){const u=t-B[i],d=B[i+1]-B[i];c.save();let dx=0;if(i==4)dx=Math.sin(u*80)*22*Math.exp(-u*6);const z=1+.05*Math.sin(Math.PI*cl(u/d));c.translate(540+dx,900);c.scale(z,z);c.translate(-540,-900);
    S[i]();c.save();c.translate(43,36);c.scale(.92,.92);OV[i](u);c.restore();if(RAW[i])RAW[i](u);c.restore();kcap(t,i)}

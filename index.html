@@ -10,7 +10,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/mediabunny@1.25.8/dist/bundles/mediabunny.min.js"></script>
+<script type="module">
+  for (const u of [
+    'https://cdn.jsdelivr.net/npm/mediabunny@1.66.0/dist/bundles/mediabunny.min.mjs',
+    'https://cdn.jsdelivr.net/npm/mediabunny@1.25.0/+esm',
+    'https://cdn.jsdelivr.net/npm/mediabunny@1.0.0/+esm'
+  ]) {
+    try {
+      window.Mediabunny = await import(u);
+      break;
+    } catch (e) {}
+  }
+</script>
 <style>
   :root {
     --bg: #080d18;
@@ -264,7 +275,7 @@
   <div id="statusText" class="status-bar">Memuat & menormalisasi narasi (VO -10 LUFS / SFX -14 LUFS)…</div>
 </section>
 
-<script src="/scenes.js"></script>
+<script src="/scenes.js?v=3"></script>
 <script>
 // ============================================================================
 // MASTER TIMELINE, AUDIO NORMALIZATION (ITU-R BS.1770-4), & MP4 EXPORTER
@@ -654,7 +665,7 @@ async function buildMasterAudioBuffers() {
   }
   recomputeTimeline();
 
-  const sr = 44100;
+  const sr = 48000;
   for (let i = 0; i < 9; i++) {
     statusEl.textContent = `Merender & mengkalibrasi SFX Scene ${i + 1}/9 (-14 LUFS @ 75% transient)…`;
     const dur = DURS[i];
@@ -676,6 +687,7 @@ async function buildMasterAudioBuffers() {
     src.start(STARTS[i]);
   }
   masterVoBuffer = await voOff.startRendering();
+  voBuffers = []; // Bebaskan ~120 MB RAM dari buffer VO per-scene
 
   const sfxOff = new OfflineAudioContext(2, totalSamples, sr);
   const pocketEq = createSfxVocalPocketFilter(sfxOff);
@@ -687,6 +699,7 @@ async function buildMasterAudioBuffers() {
     src.start(STARTS[i]);
   }
   masterSfxBuffer = await sfxOff.startRendering();
+  sfxBuffers = []; // Bebaskan ~120 MB RAM dari buffer SFX per-scene
 
   gVo = actx.createGain();
   gSfx = actx.createGain();
@@ -750,14 +763,20 @@ function seekTo(sec) {
   if (wasPlaying) startPlayback();
 }
 
+const sceneBtns = Array.from(document.querySelectorAll('.scene-btn'));
+let lastActiveSceneIdx = -1;
+
 function updateUiState(t) {
   const sb = document.getElementById('seekbar');
   sb.value = t.toFixed(2);
   document.getElementById('timeLabel').textContent = `${fmtTime(t)} / ${fmtTime(TOTAL_DUR)}`;
   const activeIdx = getSceneIndexAtTime(t);
-  document.querySelectorAll('.scene-btn').forEach((btn, idx) => {
-    btn.classList.toggle('active', idx === activeIdx);
-  });
+  if (activeIdx !== lastActiveSceneIdx) {
+    lastActiveSceneIdx = activeIdx;
+    sceneBtns.forEach((btn, idx) => {
+      btn.classList.toggle('active', idx === activeIdx);
+    });
+  }
 }
 
 document.getElementById('btnPlay').addEventListener('click', () => {
@@ -1153,51 +1172,92 @@ document.getElementById('btnExport').addEventListener('click', async () => {
   const includeVo = document.getElementById('chkVo').checked;
   const includeSfx = document.getElementById('chkSfx').checked;
 
-  const M = window.Mediabunny;
-  if (M && window.VideoEncoder && window.AudioEncoder) {
+  let M = window.Mediabunny;
+  if (!M) {
+    statusEl.textContent = 'Memuat modul encoder WebCodecs (Mediabunny)…';
+    for (const u of [
+      'https://cdn.jsdelivr.net/npm/mediabunny@1.66.0/dist/bundles/mediabunny.min.mjs',
+      'https://cdn.jsdelivr.net/npm/mediabunny@1.25.0/+esm',
+      'https://cdn.jsdelivr.net/npm/mediabunny@1.0.0/+esm'
+    ]) {
+      try {
+        M = await import(u);
+        window.Mediabunny = M;
+        break;
+      } catch (e) {}
+    }
+  }
+
+  if (M && window.VideoEncoder) {
     isExporting = true;
     btnEx.disabled = true;
     try {
-      statusEl.textContent = 'Menyiapkan bauran audio master (VO -10 LUFS + SFX -14 LUFS)…';
-      const sr = 48000;
-      const mixCtx = new OfflineAudioContext(2, Math.ceil(sr * TOTAL_DUR), sr);
-      if (includeVo && masterVoBuffer) {
-        const s = mixCtx.createBufferSource();
-        s.buffer = masterVoBuffer;
-        s.connect(mixCtx.destination);
-        s.start(0);
+      statusEl.textContent = 'Menyiapkan bauran audio master hemat RAM (VO -10 LUFS + SFX -14 LUFS)…';
+      const sr = masterVoBuffer ? masterVoBuffer.sampleRate : 48000;
+      const totalLen = masterVoBuffer ? masterVoBuffer.length : Math.ceil(sr * TOTAL_DUR);
+      let finalAudioBuffer = new AudioBuffer({ length: totalLen, numberOfChannels: 2, sampleRate: sr });
+      for (let ch = 0; ch < 2; ch++) {
+        const dst = finalAudioBuffer.getChannelData(ch);
+        const voCh = (includeVo && masterVoBuffer) ? masterVoBuffer.getChannelData(Math.min(ch, masterVoBuffer.numberOfChannels - 1)) : null;
+        const sfxCh = (includeSfx && masterSfxBuffer) ? masterSfxBuffer.getChannelData(Math.min(ch, masterSfxBuffer.numberOfChannels - 1)) : null;
+        if (voCh && sfxCh) {
+          for (let i = 0; i < totalLen; i++) {
+            const v = voCh[i] + sfxCh[i];
+            dst[i] = v > 0.99 ? 0.99 : (v < -0.99 ? -0.99 : v);
+          }
+        } else if (voCh) {
+          dst.set(voCh);
+        } else if (sfxCh) {
+          dst.set(sfxCh);
+        }
       }
-      if (includeSfx && masterSfxBuffer) {
-        const s = mixCtx.createBufferSource();
-        s.buffer = masterSfxBuffer;
-        s.connect(mixCtx.destination);
-        s.start(0);
-      }
-      const finalAudioBuffer = await mixCtx.startRendering();
 
-      const out = new M.Output({ format: new M.Mp4OutputFormat(), target: new M.BufferTarget() });
-      const vs = new M.CanvasSource(cv, { codec: 'avc', bitrate: M.QUALITY_HIGH });
+      const out = new M.Output({
+        format: new M.Mp4OutputFormat({ fastStart: 'in-memory' }),
+        target: new M.BufferTarget()
+      });
+
+      const vCodec = M.getFirstEncodableVideoCodec
+        ? ((await M.getFirstEncodableVideoCodec(['avc', 'vp9', 'vp8'], { width: 1080, height: 1920, frameRate: 30, bitrate: 8000000 })) || 'avc')
+        : 'avc';
+      const vs = new M.CanvasSource(cv, {
+        codec: vCodec,
+        bitrate: 8000000,
+        latencyMode: 'quality',
+        keyFrameInterval: 1
+      });
       out.addVideoTrack(vs, { frameRate: 30 });
-      const aCodec = M.canEncodeAudio ? ((await M.canEncodeAudio('aac')) ? 'aac' : 'opus') : 'aac';
-      const as = new M.AudioBufferSource({ codec: aCodec, bitrate: 192000 });
+
+      let aCodec = 'aac';
+      if (M.getFirstEncodableAudioCodec) {
+        aCodec = (await M.getFirstEncodableAudioCodec(['aac', 'mp3', 'opus', 'pcm-s16'], { numberOfChannels: 2, sampleRate: sr, bitrate: 192000 })) || 'aac';
+      } else if (M.canEncodeAudio) {
+        aCodec = (await M.canEncodeAudio('aac')) ? 'aac' : 'opus';
+      }
+      const as = new M.AudioBufferSource({
+        codec: aCodec,
+        bitrate: 192000
+      });
       out.addAudioTrack(as);
       await out.start();
 
       await as.add(finalAudioBuffer);
       as.close();
+      finalAudioBuffer = null; // Bebaskan ~130 MB buffer campuran sebelum loop render video
 
       const totalFrames = Math.floor(TOTAL_DUR * 30);
       for (let f = 0; f < totalFrames; f++) {
         const t = f / 30;
         renderMaster(t);
         await vs.add(t, 1 / 30);
-        if (f % 30 === 0) {
+        if (f % 15 === 0) {
           const pct = Math.round((f / totalFrames) * 100);
-          statusEl.textContent = `Mengekspor MP4 1080×1920 (30 FPS): ${pct}% (${fmtTime(t)} / ${fmtTime(TOTAL_DUR)})…`;
+          statusEl.textContent = `Merender Offline 30.00 FPS (8 Mbps • Bebas Patah-Patah): ${pct}% (${fmtTime(t)} / ${fmtTime(TOTAL_DUR)})…`;
           await new Promise(r => setTimeout(r, 0));
         }
       }
       vs.close();
+      statusEl.textContent = 'Menyelesaikan muxing MP4 FastStart…';
       await out.finalize();
 
       const rawBlob = new Blob([out.target.buffer], { type: 'video/mp4' });
@@ -1208,7 +1268,7 @@ document.getElementById('btnExport').addEventListener('click', async () => {
       a.download = 'masterclass-rag-part-4-full.mp4';
       a.click();
 
-      statusEl.innerHTML = `Selesai! Video MP4 (1080×1920 • 30 FPS) berhasil diunduh. <a href="${url}" download="masterclass-rag-part-4-full.mp4">Klik di sini jika belum terunduh</a>.`;
+      statusEl.innerHTML = `Selesai! Video MP4 (1080×1920 • 30.00 FPS Konstan • High Bitrate) berhasil diunduh. <a href="${url}" download="masterclass-rag-part-4-full.mp4">Klik di sini jika belum terunduh</a>.`;
       isExporting = false;
       btnEx.disabled = false;
       renderMaster(playOffset);
