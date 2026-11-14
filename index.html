@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Masterclass RAG Bagian 4 — Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ</title>
+<meta name="description" content="Memadukan Analogi Hantu Data (Split-Brain Database) dan Analogi Lorong Perpustakaan Bertingkat dengan bedah skema DDL SQL, denormalisasi JSONB, kolom otomatis TSVECTOR, serta kalkulasi memori indeks HNSW dan GIN.">
+<meta property="og:title" content="Masterclass RAG Bagian 4 — Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ">
+<meta property="og:description" content="Memadukan Analogi Hantu Data (Split-Brain Database) dan Analogi Lorong Perpustakaan Bertingkat dengan bedah skema DDL SQL, denormalisasi JSONB, kolom otomatis TSVECTOR, serta kalkulasi memori indeks HNSW dan GIN.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mediabunny@1.25.8/dist/bundles/mediabunny.min.js"></script>
+<style>
+  :root {
+    --bg: #080d18;
+    --panel: #111b2e;
+    --border: #223252;
+    --ink: #172235;
+    --ivory: #F6F5EE;
+    --cobalt: #4667FF;
+    --teal: #16B99A;
+    --coral: #FF765E;
+    --amber: #FFC65C;
+    --peri: #A3A5F4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ivory);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 12px 28px;
+    gap: 12px;
+  }
+  .header-bar {
+    width: min(100%, 540px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .header-badge {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--amber);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .header-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--ivory);
+    line-height: 1.25;
+  }
+  .stage-wrap {
+    position: relative;
+    width: min(100%, 420px);
+    aspect-ratio: 9 / 16;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #0e1626;
+    border: 2px solid var(--border);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .ctrl-panel {
+    width: min(100%, 540px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .transport-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  button {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px 13px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #192742;
+    color: var(--ivory);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) {
+    background: #223559;
+    border-color: var(--peri);
+  }
+  button:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--cobalt);
+    border-color: var(--cobalt);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #3957e6;
+  }
+  .btn-accent {
+    background: var(--teal);
+    border-color: var(--teal);
+    color: var(--ink);
+  }
+  .btn-accent:hover:not(:disabled) {
+    background: #13a286;
+  }
+  #seekbar {
+    flex: 1;
+    accent-color: var(--amber);
+    height: 6px;
+    cursor: pointer;
+  }
+  .time-label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--amber);
+    min-width: 96px;
+    text-align: right;
+  }
+  .scene-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .scene-btn {
+    flex: 1 1 calc(20% - 6px);
+    min-width: 78px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    padding: 6px 8px;
+    text-align: center;
+    background: #142038;
+  }
+  .scene-btn.active {
+    background: var(--amber);
+    color: var(--ink);
+    border-color: var(--amber);
+    font-weight: 800;
+  }
+  .options-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+  .toggles-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ivory);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-label input {
+    accent-color: var(--teal);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
+  .export-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .status-bar {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: var(--peri);
+    background: #0c1424;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    line-height: 1.4;
+  }
+  .status-bar a {
+    color: var(--amber);
+    font-weight: 700;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+
+<header class="header-bar">
+  <div class="header-badge">Masterclass RAG Bagian 4 • Full Motion Graphic (1080×1920 • 30 FPS)</div>
+  <h1 class="header-title">Pipa Ingestion Asinkron — Mencegah Server Membeku Saat Ekstraksi PDF dengan Redis dan BullMQ</h1>
+</header>
+
+<div class="stage-wrap">
+  <canvas id="cv" width="1080" height="1920"></canvas>
+</div>
+
+<section class="ctrl-panel">
+  <div class="transport-row">
+    <button id="btnPlay" class="btn-primary">▶ Play</button>
+    <button id="btnReset">↺ Reset</button>
+    <input id="seekbar" type="range" min="0" max="341.4" step="0.1" value="0">
+    <span id="timeLabel" class="time-label">00:00 / 05:41</span>
+  </div>
+
+  <div id="sceneGrid" class="scene-grid">
+    <button class="scene-btn active" data-scene="0">Scene 1</button>
+    <button class="scene-btn" data-scene="1">Scene 2</button>
+    <button class="scene-btn" data-scene="2">Scene 3</button>
+    <button class="scene-btn" data-scene="3">Scene 4</button>
+    <button class="scene-btn" data-scene="4">Scene 5</button>
+    <button class="scene-btn" data-scene="5">Scene 6</button>
+    <button class="scene-btn" data-scene="6">Scene 7</button>
+    <button class="scene-btn" data-scene="7">Scene 8</button>
+    <button class="scene-btn" data-scene="8">Outro</button>
+  </div>
+
+  <div class="options-row">
+    <div class="toggles-group">
+      <label class="toggle-label"><input type="checkbox" id="chkVo" checked> Narasi</label>
+      <label class="toggle-label"><input type="checkbox" id="chkSfx" checked> Efek</label>
+      <label class="toggle-label"><input type="checkbox" id="chkSub" checked> Subtitle</label>
+    </div>
+    <div class="export-group">
+      <button id="btnSrt">⬇ .SRT</button>
+      <button id="btnExport" class="btn-accent">⬇ Download Video (MP4)</button>
+    </div>
+  </div>
+
+  <div id="statusText" class="status-bar">Memuat & menormalisasi narasi (VO -10 LUFS / SFX -14 LUFS)…</div>
+</section>
+
+<script src="/scenes.js"></script>
+<script>
+// ============================================================================
+// MASTER TIMELINE, AUDIO NORMALIZATION (ITU-R BS.1770-4), & MP4 EXPORTER
+// ============================================================================
+const cv = document.getElementById('cv');
+const ctx2d = cv.getContext('2d');
+
+const sc1 = createScene1();
+const sc2 = createScene2();
+const sc3 = createScene3();
+const sc4 = createScene4();
+const sc5 = createScene5();
+const sc6 = createScene6();
+const sc7 = createScene7();
+const sc8 = createScene8();
+const scOutro = createOutro();
+
+const SCENES = [sc1, sc2, sc3, sc4, sc5, sc6, sc7, sc8, scOutro];
+const SCENE_NAMES = [
+  'Scene 1: Analogi Kedai Kopi & Event Loop',
+  'Scene 2: Arsitektur Pipa Asinkron & Tiket 202',
+  'Scene 3: Kontrak JSON Antrian & Aturan Emas',
+  'Scene 4: Siklus Hidup Job BullMQ & Concurrency',
+  'Scene 5: Streaming PDF Parser & Chunking',
+  'Scene 6: Teknik Batching API Embedding',
+  'Scene 7: Exponential Backoff & Dead Letter Queue',
+  'Scene 8: Transaksi Database, Idempotensi & SSE',
+  'Outro: Alif Pustaka Logo Reveal'
+];
+
+const SCENE_DELAY = 2.0;
+const VO_FILES = [
+  '/voiceover-scene-1.wav',
+  '/voiceover-scene-2.wav',
+  '/voiceover-scene-3.wav',
+  '/voiceover-scene-4.wav',
+  '/voiceover-scene-5.wav',
+  '/voiceover-scene-6.wav',
+  '/voiceover-scene-7.wav',
+  '/voiceover-scene-8.wav'
+];
+
+const VO_DURS = [
+  sc1.DUR, sc2.DUR, sc3.DUR, sc4.DUR,
+  sc5.DUR, sc6.DUR, sc7.DUR, sc8.DUR,
+  4.0
+];
+const DURS = [
+  ...VO_DURS.slice(0, 7).map(d => d + SCENE_DELAY),
+  VO_DURS[7],
+  scOutro.DUR
+];
+const STARTS = [];
+let TOTAL_DUR = 0;
+
+function recomputeTimeline() {
+  STARTS.length = 0;
+  let acc = 0;
+  for (let i = 0; i < DURS.length; i++) {
+    STARTS.push(acc);
+    acc += DURS[i];
+  }
+  TOTAL_DUR = acc;
+  const sb = document.getElementById('seekbar');
+  sb.max = TOTAL_DUR.toFixed(2);
+}
+recomputeTimeline();
+
+// ============================================================================
+// ITU-R BS.1770-4 LOUDNESS & TRUE-PEAK ENGINE (VO -10 LUFS / SFX -14 LUFS)
+// ============================================================================
+const VO_TARGET_LUFS = -10.0;
+const VO_TARGET_DBTP = 0.0;
+const SFX_TARGET_LUFS = -14.0;
+const SFX_TARGET_DBTP = 0.0;
+
+function getKWeightCoeffs(sr) {
+  const f0_1 = 1681.974450955533, G_1 = 3.999843853973347, Q_1 = 0.7071752369554196;
+  const K1 = Math.tan(Math.PI * f0_1 / sr);
+  const Vh = Math.pow(10, G_1 / 20), Vb = Math.pow(Vh, 0.4996667741545416);
+  const a0_1 = 1 + K1 / Q_1 + K1 * K1;
+  const b0_1 = (Vh + Vb * K1 / Q_1 + K1 * K1) / a0_1;
+  const b1_1 = 2 * (K1 * K1 - Vh) / a0_1;
+  const b2_1 = (Vh - Vb * K1 / Q_1 + K1 * K1) / a0_1;
+  const a1_1 = 2 * (K1 * K1 - 1) / a0_1;
+  const a2_1 = (1 - K1 / Q_1 + K1 * K1) / a0_1;
+
+  const f0_2 = 38.13547087602444, Q_2 = 0.5003270373238773;
+  const K2 = Math.tan(Math.PI * f0_2 / sr);
+  const a0_2 = 1 + K2 / Q_2 + K2 * K2;
+  const b0_2 = 1 / a0_2, b1_2 = -2 / a0_2, b2_2 = 1 / a0_2;
+  const a1_2 = 2 * (K2 * K2 - 1) / a0_2;
+  const a2_2 = (1 - K2 / Q_2 + K2 * K2) / a0_2;
+
+  return { b0_1, b1_1, b2_1, a1_1, a2_1, b0_2, b1_2, b2_2, a1_2, a2_2 };
+}
+
+function measureLoudnessBS1770(audioBuffer, opts = {}) {
+  const sr = audioBuffer.sampleRate;
+  const nCh = audioBuffer.numberOfChannels;
+  const len = audioBuffer.length;
+  const c = getKWeightCoeffs(sr);
+
+  const kwChannels = [];
+  let maxTruePeak = 0;
+
+  for (let ch = 0; ch < nCh; ch++) {
+    const src = audioBuffer.getChannelData(ch);
+    const dst = new Float32Array(len);
+    let x1_1 = 0, x2_1 = 0, y1_1 = 0, y2_1 = 0;
+    let x1_2 = 0, x2_2 = 0, y1_2 = 0, y2_2 = 0;
+    let prev = 0;
+
+    for (let i = 0; i < len; i++) {
+      const s = src[i];
+      const absS = Math.abs(s);
+      if (absS > maxTruePeak) maxTruePeak = absS;
+      if (i > 0) {
+        const m1 = Math.abs(0.75 * prev + 0.25 * s);
+        const m2 = Math.abs(0.50 * prev + 0.50 * s);
+        const m3 = Math.abs(0.25 * prev + 0.75 * s);
+        if (m1 > maxTruePeak) maxTruePeak = m1;
+        if (m2 > maxTruePeak) maxTruePeak = m2;
+        if (m3 > maxTruePeak) maxTruePeak = m3;
+      }
+      prev = s;
+
+      const w1 = c.b0_1 * s + c.b1_1 * x1_1 + c.b2_1 * x2_1 - c.a1_1 * y1_1 - c.a2_1 * y2_1;
+      x2_1 = x1_1; x1_1 = s; y2_1 = y1_1; y1_1 = w1;
+
+      const w2 = c.b0_2 * w1 + c.b1_2 * x1_2 + c.b2_2 * x2_2 - c.a1_2 * y1_2 - c.a2_2 * y2_2;
+      x2_2 = x1_2; x1_2 = w1; y2_2 = y1_2; y1_2 = w2;
+
+      dst[i] = w2;
+    }
+    kwChannels.push(dst);
+  }
+
+  const winSec = opts.winSec || 0.4;
+  const stepSec = opts.stepSec || 0.1;
+  const blockSize = Math.max(1, Math.round(sr * winSec));
+  const hopSize = Math.max(1, Math.round(sr * stepSec));
+  const blockEnergies = [];
+
+  for (let start = 0; start + blockSize <= len; start += hopSize) {
+    let sumEnergy = 0;
+    for (let ch = 0; ch < nCh; ch++) {
+      const d = kwChannels[ch];
+      let chSq = 0;
+      for (let i = start; i < start + blockSize; i++) chSq += d[i] * d[i];
+      sumEnergy += chSq / blockSize;
+    }
+    blockEnergies.push(sumEnergy / nCh);
+  }
+
+  if (blockEnergies.length === 0) {
+    let sumEnergy = 0;
+    for (let ch = 0; ch < nCh; ch++) {
+      const d = kwChannels[ch];
+      let chSq = 0;
+      for (let i = 0; i < len; i++) chSq += d[i] * d[i];
+      sumEnergy += chSq / Math.max(1, len);
+    }
+    blockEnergies.push(sumEnergy / nCh);
+  }
+
+  const absThreshold = Math.pow(10, (-70.0 + 0.691) / 10);
+  const gated1 = blockEnergies.filter(e => e > absThreshold);
+  if (gated1.length === 0) {
+    return { lufs: -70, truePeakLinear: maxTruePeak };
+  }
+
+  if (opts.transientTopRatio) {
+    const sorted = [...gated1].sort((a, b) => b - a);
+    const keepCount = Math.max(1, Math.ceil(sorted.length * opts.transientTopRatio));
+    let sumTop = 0;
+    for (let i = 0; i < keepCount; i++) sumTop += sorted[i];
+    const lufs = -0.691 + 10 * Math.log10(Math.max(1e-12, sumTop / keepCount));
+    return { lufs, truePeakLinear: maxTruePeak };
+  }
+
+  const mean1 = gated1.reduce((a, b) => a + b, 0) / gated1.length;
+  const gammaA = -0.691 + 10 * Math.log10(Math.max(1e-12, mean1));
+  const relThreshold = Math.pow(10, (gammaA - 10.0 + 0.691) / 10);
+  const gated2 = gated1.filter(e => e > relThreshold);
+  const mean2 = (gated2.length > 0 ? gated2 : gated1).reduce((a, b) => a + b, 0) / (gated2.length || gated1.length);
+  const integratedLufs = -0.691 + 10 * Math.log10(Math.max(1e-12, mean2));
+
+  return { lufs: integratedLufs, truePeakLinear: maxTruePeak };
+}
+
+function clampLocalTruePeaks(data, maxTpLinear) {
+  const n = data.length;
+  for (let i = 0; i < n; i++) {
+    if (data[i] > maxTpLinear) data[i] = maxTpLinear;
+    else if (data[i] < -maxTpLinear) data[i] = -maxTpLinear;
+    if (i > 0) {
+      const prev = data[i - 1], cur = data[i];
+      const m1 = Math.abs(0.75 * prev + 0.25 * cur);
+      const m2 = Math.abs(0.50 * prev + 0.50 * cur);
+      const m3 = Math.abs(0.25 * prev + 0.75 * cur);
+      const maxInter = Math.max(m1, m2, m3);
+      if (maxInter > maxTpLinear) {
+        const scale = maxTpLinear / maxInter;
+        data[i - 1] *= scale;
+        data[i] *= scale;
+      }
+    }
+  }
+}
+
+function normalizeAudioBufferToTarget(audioBuffer, targetLufs = VO_TARGET_LUFS, targetDbtp = VO_TARGET_DBTP) {
+  const maxLinearCeiling = Math.min(0.998, Math.pow(10, targetDbtp / 20) * 0.998);
+  const nCh = audioBuffer.numberOfChannels;
+  const len = audioBuffer.length;
+  const origChannels = [];
+  for (let ch = 0; ch < nCh; ch++) {
+    origChannels.push(new Float32Array(audioBuffer.getChannelData(ch)));
+  }
+
+  const { lufs: initLufs } = measureLoudnessBS1770(audioBuffer);
+  if (!isFinite(initLufs) || initLufs <= -65) return audioBuffer;
+
+  let gain = Math.pow(10, (targetLufs - initLufs) / 20);
+  const knee = 0.84;
+  const span = Math.max(0.02, maxLinearCeiling - knee);
+
+  for (let iter = 0; iter < 5; iter++) {
+    for (let ch = 0; ch < nCh; ch++) {
+      const data = audioBuffer.getChannelData(ch);
+      const orig = origChannels[ch];
+      for (let i = 0; i < len; i++) {
+        let v = orig[i] * gain;
+        const absV = Math.abs(v);
+        if (absV > knee) {
+          const sign = v < 0 ? -1 : 1;
+          v = sign * (knee + span * Math.tanh((absV - knee) / span));
+        }
+        data[i] = v;
+      }
+      clampLocalTruePeaks(data, maxLinearCeiling);
+    }
+    const { lufs: newLufs } = measureLoudnessBS1770(audioBuffer);
+    const diff = targetLufs - newLufs;
+    if (Math.abs(diff) <= 0.05) break;
+    gain *= Math.pow(10, diff / 20);
+  }
+  return audioBuffer;
+}
+
+function calibrateSfxBuffer75Percent(audioBuffer, targetLufs = SFX_TARGET_LUFS, targetDbtp = SFX_TARGET_DBTP) {
+  const maxLinearCeiling = Math.min(0.998, Math.pow(10, targetDbtp / 20) * 0.998);
+  const nCh = audioBuffer.numberOfChannels;
+  const len = audioBuffer.length;
+  const origChannels = [];
+  for (let ch = 0; ch < nCh; ch++) {
+    origChannels.push(new Float32Array(audioBuffer.getChannelData(ch)));
+  }
+
+  const sfxMeasureOpts = {
+    winSec: 0.30,
+    stepSec: 0.075,
+    transientTopRatio: 0.78
+  };
+
+  const { lufs: initLufs } = measureLoudnessBS1770(audioBuffer, sfxMeasureOpts);
+  if (!isFinite(initLufs) || initLufs <= -65) return audioBuffer;
+
+  // Kalibrasi Transien 75%: batas gain kumulatif maksimum 2.80x (+8.94 dB) dengan 4 iterasi soft-knee (knee = 0.84)
+  let gain = Math.min(2.80, Math.pow(10, (targetLufs - initLufs) / 20));
+  const knee = 0.84;
+  const span = Math.max(0.02, maxLinearCeiling - knee);
+
+  for (let iter = 0; iter < 4; iter++) {
+    for (let ch = 0; ch < nCh; ch++) {
+      const data = audioBuffer.getChannelData(ch);
+      const orig = origChannels[ch];
+      for (let i = 0; i < len; i++) {
+        let v = orig[i] * gain;
+        const absV = Math.abs(v);
+        if (absV > knee) {
+          const sign = v < 0 ? -1 : 1;
+          v = sign * (knee + span * Math.tanh((absV - knee) / span));
+        }
+        data[i] = v;
+      }
+      clampLocalTruePeaks(data, maxLinearCeiling);
+    }
+    const { lufs: newLufs } = measureLoudnessBS1770(audioBuffer, sfxMeasureOpts);
+    const diff = targetLufs - newLufs;
+    if (Math.abs(diff) <= 0.08) break;
+    gain = Math.min(2.80, gain * Math.pow(10, (diff * 0.75) / 20));
+  }
+  return audioBuffer;
+}
+
+function createSfxVocalPocketFilter(audioCtx) {
+  const eq = audioCtx.createBiquadFilter();
+  eq.type = 'peaking';
+  eq.frequency.value = 2200;
+  eq.Q.value = 0.9;
+  eq.gain.value = -1.25;
+  return eq;
+}
+
+// ============================================================================
+// MASTER RENDERER WITH INTER-SCENE RADIAL WIPE AT (540, 960)
+// ============================================================================
+const eo = x => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+
+function getSceneIndexAtTime(globalT) {
+  const t = Math.max(0, Math.min(TOTAL_DUR - 0.0005, globalT));
+  let idx = 0;
+  for (let i = 0; i < STARTS.length; i++) {
+    if (t >= STARTS[i]) idx = i;
+  }
+  return idx;
+}
+
+function renderMaster(globalT) {
+  const t = Math.max(0, Math.min(TOTAL_DUR - 0.0005, globalT));
+  const idx = getSceneIndexAtTime(t);
+  const localT = t - STARTS[idx];
+  const showSub = document.getElementById('chkSub').checked;
+
+  ctx2d.save();
+  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+
+  if (idx > 0 && localT < 0.65) {
+    const prevT = DURS[idx - 1] - 0.001;
+    SCENES[idx - 1].render(ctx2d, prevT, showSub);
+
+    ctx2d.save();
+    ctx2d.beginPath();
+    ctx2d.arc(540, 960, eo(localT / 0.65) * 1450, 0, Math.PI * 2);
+    ctx2d.clip();
+    SCENES[idx].render(ctx2d, localT, showSub);
+    ctx2d.restore();
+  } else {
+    SCENES[idx].render(ctx2d, localT, showSub);
+  }
+
+  ctx2d.restore();
+}
+
+// ============================================================================
+// AUDIO GRAPH & PLAYBACK CONTROLLER (NO BACKGROUND MUSIC)
+// ============================================================================
+let actx = null;
+let voBuffers = new Array(8).fill(null);
+let sfxBuffers = new Array(9).fill(null);
+let masterVoBuffer = null;
+let masterSfxBuffer = null;
+let gVo = null, gSfx = null, mdest = null;
+let activeSources = [];
+let isPlaying = false;
+let playOffset = 0;
+let playStartClock = 0;
+let isExporting = false;
+let audioReady = false;
+
+const fmtTime = sec => {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
+};
+
+function getCurrentTime() {
+  if (!isPlaying || !actx) return playOffset;
+  return playOffset + (actx.currentTime - playStartClock);
+};
+
+async function buildMasterAudioBuffers() {
+  const statusEl = document.getElementById('statusText');
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+
+  for (let i = 0; i < 8; i++) {
+    statusEl.textContent = `Memuat & menormalisasi Voiceover Scene ${i + 1}/8 (-10 LUFS)…`;
+    const resp = await fetch(VO_FILES[i]);
+    const arr = await resp.arrayBuffer();
+    const decoded = await actx.decodeAudioData(arr);
+    normalizeAudioBufferToTarget(decoded, VO_TARGET_LUFS, VO_TARGET_DBTP);
+    voBuffers[i] = decoded;
+    VO_DURS[i] = decoded.duration;
+    DURS[i] = i === 7 ? decoded.duration : decoded.duration + SCENE_DELAY;
+  }
+  recomputeTimeline();
+
+  const sr = 44100;
+  for (let i = 0; i < 9; i++) {
+    statusEl.textContent = `Merender & mengkalibrasi SFX Scene ${i + 1}/9 (-14 LUFS @ 75% transient)…`;
+    const dur = DURS[i];
+    const offCtx = new OfflineAudioContext(2, Math.ceil(sr * dur), sr);
+    SCENES[i].scheduleSfx(offCtx, offCtx.destination, 0, 0);
+    const renderedSfx = await offCtx.startRendering();
+    calibrateSfxBuffer75Percent(renderedSfx, SFX_TARGET_LUFS, SFX_TARGET_DBTP);
+    sfxBuffers[i] = renderedSfx;
+  }
+
+  statusEl.textContent = 'Menyatukan track narasi & efek suara master…';
+  const totalSamples = Math.ceil(sr * TOTAL_DUR);
+
+  const voOff = new OfflineAudioContext(2, totalSamples, sr);
+  for (let i = 0; i < 8; i++) {
+    const src = voOff.createBufferSource();
+    src.buffer = voBuffers[i];
+    src.connect(voOff.destination);
+    src.start(STARTS[i]);
+  }
+  masterVoBuffer = await voOff.startRendering();
+
+  const sfxOff = new OfflineAudioContext(2, totalSamples, sr);
+  const pocketEq = createSfxVocalPocketFilter(sfxOff);
+  pocketEq.connect(sfxOff.destination);
+  for (let i = 0; i < 9; i++) {
+    const src = sfxOff.createBufferSource();
+    src.buffer = sfxBuffers[i];
+    src.connect(pocketEq);
+    src.start(STARTS[i]);
+  }
+  masterSfxBuffer = await sfxOff.startRendering();
+
+  gVo = actx.createGain();
+  gSfx = actx.createGain();
+  gVo.gain.value = document.getElementById('chkVo').checked ? 1.0 : 0.0;
+  gSfx.gain.value = document.getElementById('chkSfx').checked ? 1.0 : 0.0;
+
+  const masterOut = actx.createGain();
+  mdest = actx.createMediaStreamDestination();
+  gVo.connect(masterOut);
+  gSfx.connect(masterOut);
+  masterOut.connect(actx.destination);
+  masterOut.connect(mdest);
+
+  audioReady = true;
+  statusEl.textContent = `Siap • Total Durasi ${fmtTime(TOTAL_DUR)} (${TOTAL_DUR.toFixed(1)} dtk • 8 Scene + Outro • VO -10 LUFS • SFX -14 LUFS • Tanpa Musik).`;
+}
+
+function startPlayback() {
+  if (!audioReady || !actx) return;
+  actx.resume();
+  if (playOffset >= TOTAL_DUR - 0.05) playOffset = 0;
+  stopActiveSources();
+
+  const sVo = actx.createBufferSource();
+  sVo.buffer = masterVoBuffer;
+  sVo.connect(gVo);
+  sVo.start(0, playOffset);
+
+  const sSfx = actx.createBufferSource();
+  sSfx.buffer = masterSfxBuffer;
+  sSfx.connect(gSfx);
+  sSfx.start(0, playOffset);
+
+  activeSources = [sVo, sSfx];
+  playStartClock = actx.currentTime;
+  isPlaying = true;
+  document.getElementById('btnPlay').textContent = '⏸ Pause';
+}
+
+function stopActiveSources() {
+  activeSources.forEach(s => {
+    try { s.stop(); } catch (e) {}
+  });
+  activeSources = [];
+}
+
+function pausePlayback() {
+  if (!isPlaying) return;
+  playOffset = Math.min(TOTAL_DUR, getCurrentTime());
+  isPlaying = false;
+  stopActiveSources();
+  document.getElementById('btnPlay').textContent = '▶ Play';
+}
+
+function seekTo(sec) {
+  const wasPlaying = isPlaying;
+  if (isPlaying) pausePlayback();
+  playOffset = Math.max(0, Math.min(TOTAL_DUR - 0.001, sec));
+  renderMaster(playOffset);
+  updateUiState(playOffset);
+  if (wasPlaying) startPlayback();
+}
+
+function updateUiState(t) {
+  const sb = document.getElementById('seekbar');
+  sb.value = t.toFixed(2);
+  document.getElementById('timeLabel').textContent = `${fmtTime(t)} / ${fmtTime(TOTAL_DUR)}`;
+  const activeIdx = getSceneIndexAtTime(t);
+  document.querySelectorAll('.scene-btn').forEach((btn, idx) => {
+    btn.classList.toggle('active', idx === activeIdx);
+  });
+}
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  if (isPlaying) pausePlayback();
+  else startPlayback();
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  seekTo(0);
+});
+
+document.getElementById('seekbar').addEventListener('input', e => {
+  seekTo(parseFloat(e.target.value) || 0);
+});
+
+document.querySelectorAll('.scene-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const idx = parseInt(btn.getAttribute('data-scene'), 10);
+    if (!isNaN(idx) && STARTS[idx] !== undefined) {
+      seekTo(STARTS[idx]);
+    }
+  });
+});
+
+document.getElementById('chkVo').addEventListener('change', e => {
+  if (gVo) gVo.gain.value = e.target.checked ? 1.0 : 0.0;
+});
+
+document.getElementById('chkSfx').addEventListener('change', e => {
+  if (gSfx) gSfx.gain.value = e.target.checked ? 1.0 : 0.0;
+});
+
+document.getElementById('chkSub').addEventListener('change', () => {
+  if (!isPlaying) renderMaster(playOffset);
+});
+
+// ============================================================================
+// COMBINED .SRT SUBTITLE GENERATOR (SCENES 1–8)
+// ============================================================================
+function formatSrtTime(sec) {
+  const ms = Math.max(0, Math.round(sec * 1000));
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const milli = ms % 1000;
+  return (
+    String(h).padStart(2, '0') + ':' +
+    String(m).padStart(2, '0') + ':' +
+    String(s).padStart(2, '0') + ',' +
+    String(milli).padStart(3, '0')
+  );
+}
+
+document.getElementById('btnSrt').addEventListener('click', () => {
+  const blocks = [];
+  let counter = 1;
+  for (let sIdx = 0; sIdx < 8; sIdx++) {
+    const offset = STARTS[sIdx];
+    const cues = SCENES[sIdx].CH || SCENES[sIdx].CUES || [];
+    cues.forEach(cue => {
+      const t0 = offset + cue[0];
+      const t1 = offset + cue[1];
+      blocks.push(`${counter++}\n${formatSrtTime(t0)} --> ${formatSrtTime(t1)}\n${cue[2]}\n`);
+    });
+  }
+  const blob = new Blob([blocks.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'masterclass-rag-part-4-full.srt';
+  a.click();
+});
+
+// ============================================================================
+// SEEKABLE MP4 DEFRAGMENTER (ISO BMFF fMP4 -> STANDARD MOOV FASTSTART MP4)
+// ============================================================================
+async function ensureSeekableMp4(blob) {
+  try {
+    const buf = await blob.arrayBuffer();
+    const out = defragmentMp4(buf);
+    return new Blob([out], { type: 'video/mp4' });
+  } catch (err) {
+    console.warn('MP4 defragment fallback:', err);
+    return blob;
+  }
+}
+
+function defragmentMp4(buffer) {
+  const u8 = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+  const R = p => dv.getUint32(p);
+  const R8 = p => Number(dv.getBigUint64(p));
+  const F = p => String.fromCharCode(u8[p], u8[p + 1], u8[p + 2], u8[p + 3]);
+
+  const boxes = (s, e) => {
+    const a = [];
+    for (let p = s; p + 8 <= e;) {
+      let sz = R(p), hs = 8;
+      if (sz === 1) { sz = R8(p + 8); hs = 16; }
+      else if (sz === 0) sz = e - p;
+      if (sz < hs || p + sz > e) break;
+      a.push({ t: F(p + 4), p, sz, cs: p + hs, ce: p + sz });
+      p += sz;
+    }
+    return a;
+  };
+  const find = (b, t) => boxes(b.cs, b.ce).find(x => x.t === t);
+  const findAll = (b, t) => boxes(b.cs, b.ce).filter(x => x.t === t);
+
+  const top = boxes(0, u8.length);
+  const ftyp = top.find(b => b.t === 'ftyp');
+  const moov = top.find(b => b.t === 'moov');
+  const moofs = top.filter(b => b.t === 'moof');
+  if (!moov || !moofs.length) return buffer;
+
+  const def = new Map();
+  const mvex = find(moov, 'mvex');
+  if (mvex) {
+    for (const x of findAll(mvex, 'trex')) {
+      def.set(R(x.cs + 4), {
+        di: R(x.cs + 8),
+        du: R(x.cs + 12),
+        sz: R(x.cs + 16),
+        fl: R(x.cs + 20)
+      });
+    }
+  }
+
+  const trk = new Map();
+  for (const tk of findAll(moov, 'trak')) {
+    const th = find(tk, 'tkhd');
+    if (!th) continue;
+    const v = u8[th.cs];
+    const id = R(th.cs + (v ? 20 : 12));
+    trk.set(id, { tk, s: [], d: def.get(id) || { di: 1, du: 0, sz: 0, fl: 0 } });
+  }
+
+  const chunks = [];
+  let mdatLen = 0;
+
+  for (let i = 0; i < top.length; i++) {
+    if (top[i].t !== 'moof') continue;
+    const moof = top[i];
+    let mdat = null;
+    for (let j = i + 1; j < top.length; j++) {
+      if (top[j].t === 'mdat') { mdat = top[j]; break; }
+      if (top[j].t === 'moof') break;
+    }
+    if (!mdat) continue;
+
+    for (const tf of findAll(moof, 'traf')) {
+      const th = find(tf, 'tfhd');
+      if (!th) continue;
+      const tfFl = R(th.cs) & 0xffffff;
+      const tid = R(th.cs + 4);
+      const t = trk.get(tid);
+      if (!t) continue;
+
+      const tfdt = find(tf, 'tfdt');
+      const dts = tfdt ? (u8[tfdt.cs] ? R8(tfdt.cs + 4) : R(tfdt.cs + 4)) : null;
+
+      let q = th.cs + 8;
+      let base = moof.p;
+      if (tfFl & 1) { base = R8(q); q += 8; }
+      if (tfFl & 2) q += 4;
+      const dDu = (tfFl & 8) ? (q += 4, R(q - 4)) : t.d.du;
+      const dSz = (tfFl & 16) ? (q += 4, R(q - 4)) : t.d.sz;
+      const dFl = (tfFl & 32) ? (q += 4, R(q - 4)) : t.d.fl;
+
+      let runOff = base;
+      let firstInTraf = true;
+      for (const tr of findAll(tf, 'trun')) {
+        const v = u8[tr.cs], fl = R(tr.cs) & 0xffffff, n = R(tr.cs + 4);
+        let p = tr.cs + 8;
+        if (fl & 1) { runOff = base + dv.getInt32(p); p += 4; }
+        const fstFl = (fl & 4) ? (p += 4, R(p - 4)) : null;
+
+        for (let k = 0; k < n; k++) {
+          const du = (fl & 0x100) ? (p += 4, R(p - 4)) : dDu;
+          const sz = (fl & 0x200) ? (p += 4, R(p - 4)) : dSz;
+          const sfl = (fl & 0x400) ? (p += 4, R(p - 4)) : (k === 0 && fstFl !== null ? fstFl : dFl);
+          let ct = 0;
+          if (fl & 0x800) { ct = v ? dv.getInt32(p) : R(p); p += 4; }
+          if (sz > 0 && runOff >= mdat.cs && runOff + sz <= mdat.ce) {
+            t.s.push({
+              du,
+              sz,
+              ct,
+              key: !(sfl & 0x10000),
+              pos: mdatLen,
+              dts: firstInTraf ? dts : null
+            });
+            firstInTraf = false;
+            chunks.push(u8.subarray(runOff, runOff + sz));
+            mdatLen += sz;
+          }
+          runOff += sz;
+        }
+      }
+    }
+  }
+
+  if (!mdatLen) return buffer;
+
+  const B = (t, ...c) => {
+    let n = 8;
+    for (const x of c) n += x.byteLength;
+    const o = new Uint8Array(n), v = new DataView(o.buffer);
+    v.setUint32(0, n);
+    for (let i = 0; i < 4; i++) o[4 + i] = t.charCodeAt(i);
+    let p = 8;
+    for (const x of c) { o.set(x, p); p += x.byteLength; }
+    return o;
+  };
+  const FB = (t, ver, fl, ...c) => {
+    const h = new Uint8Array(4);
+    new DataView(h.buffer).setUint32(0, (ver << 24) | (fl & 0xffffff));
+    return B(t, h, ...c);
+  };
+  const U32 = a => {
+    const o = new Uint8Array(a.length * 4), v = new DataView(o.buffer);
+    a.forEach((x, i) => v.setUint32(i * 4, x >>> 0));
+    return o;
+  };
+
+  let mvhdTs = 1000;
+  const mvhd = find(moov, 'mvhd');
+  if (mvhd) mvhdTs = R(mvhd.cs + (u8[mvhd.cs] ? 20 : 12));
+
+  // Pre-repair sample durations (handle MediaRecorder fragments with missing/zero durations)
+  let maxMs = 0;
+  for (const t of trk.values()) {
+    const s = t.s;
+    if (!s.length) continue;
+    const mdia = find(t.tk, 'mdia');
+    const mdhd = find(mdia, 'mdhd');
+    const mv = u8[mdhd.cs];
+    const ts = R(mdhd.cs + (mv ? 20 : 12)) || 1000;
+    const hdlr = find(mdia, 'hdlr');
+    const handler = hdlr ? F(hdlr.cs + 8) : '';
+    const fallbackDu = handler === 'vide' ? Math.max(1, Math.round(ts / 30)) : Math.max(1, Math.round(ts / 48));
+
+    // Derive durations from tfdt deltas if durations are 0
+    for (let i = 0; i < s.length; i++) {
+      if (s[i].du <= 0) {
+        if (s[i].dts !== null) {
+          let nextIdx = i + 1;
+          while (nextIdx < s.length && s[nextIdx].dts === null) nextIdx++;
+          if (nextIdx < s.length && s[nextIdx].dts > s[i].dts) {
+            const span = s[nextIdx].dts - s[i].dts;
+            const count = nextIdx - i;
+            const avg = Math.max(1, Math.round(span / count));
+            for (let k = i; k < nextIdx; k++) {
+              if (s[k].du <= 0) s[k].du = avg;
+            }
+          }
+        }
+        if (s[i].du <= 0) {
+          s[i].du = i > 0 && s[i - 1].du > 0 ? s[i - 1].du : fallbackDu;
+        }
+      }
+    }
+
+    const tot = s.reduce((a, x) => a + x.du, 0);
+    const ms = ts ? Math.round((tot * 1000) / ts) : 0;
+    t.tot = tot;
+    t.ms = ms;
+    if (ms > maxMs) maxMs = ms;
+  }
+
+  const mvhdDur = Math.round((maxMs * mvhdTs) / 1000);
+
+  const buildMoov = mdatOffset => {
+    const rebuildTrak = t => {
+      const s = t.s;
+      const mdia = find(t.tk, 'mdia');
+      const mdhd = find(mdia, 'mdhd');
+      const mv = u8[mdhd.cs];
+      const tot = t.tot;
+      const tkhdDur = Math.round((t.ms * mvhdTs) / 1000);
+
+      const stts = [];
+      for (const x of s) {
+        const l = stts[stts.length - 1];
+        if (l && l[1] === x.du) l[0]++;
+        else stts.push([1, x.du]);
+      }
+      const sttsB = FB('stts', 0, 0, U32([stts.length, ...stts.flat()]));
+      const stszB = FB('stsz', 0, 0, U32([0, s.length, ...s.map(x => x.sz)]));
+      const stscB = FB('stsc', 0, 0, U32([1, 1, 1, 1]));
+      const stcoB = FB('stco', 0, 0, U32([s.length, ...s.map(x => x.pos + mdatOffset)]));
+
+      const extra = [sttsB];
+      if (s.some(x => x.ct !== 0)) {
+        const ctts = [];
+        for (const x of s) {
+          const l = ctts[ctts.length - 1];
+          if (l && l[1] === x.ct) l[0]++;
+          else ctts.push([1, x.ct]);
+        }
+        extra.push(FB('ctts', 1, 0, U32([ctts.length, ...ctts.flat()])));
+      }
+      const keys = [];
+      s.forEach((x, i) => { if (x.key) keys.push(i + 1); });
+      if (keys.length && keys.length < s.length) {
+        extra.push(FB('stss', 0, 0, U32([keys.length, ...keys])));
+      }
+      extra.push(stscB, stszB, stcoB);
+
+      const minf = find(mdia, 'minf');
+      const stbl = find(minf, 'stbl');
+      const stsd = find(stbl, 'stsd');
+      const newStbl = B('stbl', u8.subarray(stsd.p, stsd.ce), ...extra);
+      const newMinf = B('minf', ...boxes(minf.cs, minf.ce).filter(x => x.t !== 'stbl').map(x => u8.subarray(x.p, x.ce)), newStbl);
+
+      const mdhdB = u8.slice(mdhd.p, mdhd.ce);
+      const mdv = new DataView(mdhdB.buffer, mdhdB.byteOffset, mdhdB.byteLength);
+      if (mv === 1) mdv.setBigUint64(8 + 24, BigInt(tot));
+      else mdv.setUint32(8 + 16, tot);
+
+      const newMdia = B('mdia', ...boxes(mdia.cs, mdia.ce).map(x => {
+        if (x.t === 'mdhd') return mdhdB;
+        if (x.t === 'minf') return newMinf;
+        return u8.subarray(x.p, x.ce);
+      }));
+
+      return B('trak', ...boxes(t.tk.cs, t.tk.ce).filter(x => x.t !== 'edts').map(x => {
+        if (x.t === 'tkhd') {
+          const b = u8.slice(x.p, x.ce);
+          const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+          const ver = b[8];
+          b[11] |= 0x03; // Ensure track_enabled & track_in_movie flags are set
+          if (ver === 1) v.setBigUint64(8 + 28, BigInt(tkhdDur));
+          else v.setUint32(8 + 20, tkhdDur);
+          return b;
+        }
+        if (x.t === 'mdia') return newMdia;
+        return u8.subarray(x.p, x.ce);
+      }));
+    };
+
+    const moovKids = [];
+    for (const x of boxes(moov.cs, moov.ce)) {
+      if (x.t === 'mvex' || x.t === 'trak') continue;
+      if (x.t === 'mvhd') {
+        const b = u8.slice(x.p, x.ce);
+        const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+        if (u8[x.cs] === 1) v.setBigUint64(8 + 24, BigInt(mvhdDur));
+        else v.setUint32(8 + 16, mvhdDur);
+        moovKids.push(b);
+      } else {
+        moovKids.push(u8.subarray(x.p, x.ce));
+      }
+    }
+    for (const t of trk.values()) {
+      if (t.s.length) moovKids.push(rebuildTrak(t));
+    }
+    return B('moov', ...moovKids);
+  };
+
+  const ftypB = ftyp ? u8.subarray(ftyp.p, ftyp.ce) : new Uint8Array(0);
+  const moovPass1 = buildMoov(0);
+  const mdatBase = ftypB.byteLength + moovPass1.byteLength + 8;
+  const rebuildFinalMoov = buildMoov(mdatBase);
+
+  const totalOut = ftypB.byteLength + rebuildFinalMoov.byteLength + 8 + mdatLen;
+  const out = new Uint8Array(totalOut);
+  const outDv = new DataView(out.buffer);
+  let wp = 0;
+  out.set(ftypB, wp); wp += ftypB.byteLength;
+  out.set(rebuildFinalMoov, wp); wp += rebuildFinalMoov.byteLength;
+  outDv.setUint32(wp, 8 + mdatLen);
+  out[wp + 4] = 109; out[wp + 5] = 100; out[wp + 6] = 97; out[wp + 7] = 116; // 'mdat'
+  wp += 8;
+  for (const ch of chunks) {
+    out.set(ch, wp);
+    wp += ch.byteLength;
+  }
+  return out.buffer;
+}
+
+// ============================================================================
+// VIDEO EXPORT (MEDIABUNNY / WEBCODECS FAST EXPORT + MEDIARECORDER FALLBACK)
+// ============================================================================
+document.getElementById('btnExport').addEventListener('click', async () => {
+  const statusEl = document.getElementById('statusText');
+  const btnEx = document.getElementById('btnExport');
+  if (!audioReady || isExporting) {
+    statusEl.textContent = 'Audio masih dimuat, mohon tunggu sebentar…';
+    return;
+  }
+  pausePlayback();
+
+  const includeVo = document.getElementById('chkVo').checked;
+  const includeSfx = document.getElementById('chkSfx').checked;
+
+  const M = window.Mediabunny;
+  if (M && window.VideoEncoder && window.AudioEncoder) {
+    isExporting = true;
+    btnEx.disabled = true;
+    try {
+      statusEl.textContent = 'Menyiapkan bauran audio master (VO -10 LUFS + SFX -14 LUFS)…';
+      const sr = 48000;
+      const mixCtx = new OfflineAudioContext(2, Math.ceil(sr * TOTAL_DUR), sr);
+      if (includeVo && masterVoBuffer) {
+        const s = mixCtx.createBufferSource();
+        s.buffer = masterVoBuffer;
+        s.connect(mixCtx.destination);
+        s.start(0);
+      }
+      if (includeSfx && masterSfxBuffer) {
+        const s = mixCtx.createBufferSource();
+        s.buffer = masterSfxBuffer;
+        s.connect(mixCtx.destination);
+        s.start(0);
+      }
+      const finalAudioBuffer = await mixCtx.startRendering();
+
+      const out = new M.Output({ format: new M.Mp4OutputFormat(), target: new M.BufferTarget() });
+      const vs = new M.CanvasSource(cv, { codec: 'avc', bitrate: M.QUALITY_HIGH });
+      out.addVideoTrack(vs, { frameRate: 30 });
+      const aCodec = M.canEncodeAudio ? ((await M.canEncodeAudio('aac')) ? 'aac' : 'opus') : 'aac';
+      const as = new M.AudioBufferSource({ codec: aCodec, bitrate: 192000 });
+      out.addAudioTrack(as);
+      await out.start();
+
+      await as.add(finalAudioBuffer);
+      as.close();
+
+      const totalFrames = Math.floor(TOTAL_DUR * 30);
+      for (let f = 0; f < totalFrames; f++) {
+        const t = f / 30;
+        renderMaster(t);
+        await vs.add(t, 1 / 30);
+        if (f % 30 === 0) {
+          const pct = Math.round((f / totalFrames) * 100);
+          statusEl.textContent = `Mengekspor MP4 1080×1920 (30 FPS): ${pct}% (${fmtTime(t)} / ${fmtTime(TOTAL_DUR)})…`;
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+      vs.close();
+      await out.finalize();
+
+      const rawBlob = new Blob([out.target.buffer], { type: 'video/mp4' });
+      const seekableBlob = await ensureSeekableMp4(rawBlob);
+      const url = URL.createObjectURL(seekableBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'masterclass-rag-part-4-full.mp4';
+      a.click();
+
+      statusEl.innerHTML = `Selesai! Video MP4 (1080×1920 • 30 FPS) berhasil diunduh. <a href="${url}" download="masterclass-rag-part-4-full.mp4">Klik di sini jika belum terunduh</a>.`;
+      isExporting = false;
+      btnEx.disabled = false;
+      renderMaster(playOffset);
+      return;
+    } catch (err) {
+      console.warn('Mediabunny export error, falling back to MediaRecorder:', err);
+      isExporting = false;
+      btnEx.disabled = false;
+    }
+  }
+
+  if (!window.MediaRecorder) {
+    statusEl.textContent = 'Browser tidak mendukung perekaman video.';
+    return;
+  }
+  const mime = [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4',
+    'video/webm;codecs=vp9,opus',
+    'video/webm'
+  ].find(m => MediaRecorder.isTypeSupported(m));
+
+  if (!mime) {
+    statusEl.textContent = 'Format perekaman tidak didukung oleh browser ini.';
+    return;
+  }
+
+  isExporting = true;
+  btnEx.disabled = true;
+  playOffset = 0;
+
+  const stream = cv.captureStream(30);
+  mdest.stream.getAudioTracks().forEach(trk => stream.addTrack(trk));
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+  rec.onstop = async () => {
+    const isMp4 = mime.startsWith('video/mp4');
+    let blob = new Blob(chunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
+    if (isMp4) {
+      statusEl.textContent = 'Menyusun ulang MP4 agar seekable (FastStart)…';
+      blob = await ensureSeekableMp4(blob);
+    }
+    const ext = isMp4 ? 'mp4' : 'webm';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `masterclass-rag-part-4-full.${ext}`;
+    a.click();
+    statusEl.innerHTML = `Selesai! <a href="${url}" download="masterclass-rag-part-4-full.${ext}">Klik untuk mengunduh (${ext.toUpperCase()})</a>.`;
+    isExporting = false;
+    btnEx.disabled = false;
+  };
+
+  statusEl.textContent = `Merekam real-time (${fmtTime(TOTAL_DUR)})… Biarkan tab ini tetap terbuka.`;
+  rec.start(500);
+  startPlayback();
+
+  const watchEnd = setInterval(() => {
+    if (!isPlaying && isExporting) {
+      clearInterval(watchEnd);
+      setTimeout(() => {
+        if (rec.state !== 'inactive') rec.stop();
+      }, 400);
+    }
+  }, 200);
+});
+
+// ============================================================================
+// MAIN ANIMATION LOOP
+// ============================================================================
+function tickFrame() {
+  if (!isExporting || isPlaying) {
+    const cur = getCurrentTime();
+    if (isPlaying && cur >= TOTAL_DUR) {
+      pausePlayback();
+      playOffset = 0;
+    }
+    const clamped = Math.max(0, Math.min(TOTAL_DUR - 0.001, getCurrentTime()));
+    renderMaster(clamped);
+    updateUiState(clamped);
+  }
+  requestAnimationFrame(tickFrame);
+}
+
+renderMaster(0);
+updateUiState(0);
+buildMasterAudioBuffers();
+requestAnimationFrame(tickFrame);
+</script>
+</body>
+</html>
